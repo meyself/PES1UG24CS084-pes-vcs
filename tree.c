@@ -178,7 +178,15 @@ static int build_tree(IndexEntry *entries, int count, int depth, ObjectID *id_ou
                 te->name[dir_len] = '\0';
             }
             i += sub_count;
+        }else {
+            // It's a file (blob)
+            TreeEntry *te = &tree.entries[tree.count++];
+            te->mode = entries[i].mode;
+            te->hash = entries[i].hash;
+            strcpy(te->name, local_path);
+            i++;
         }
+    }
 int tree_from_index(ObjectID *id_out) {
     // TODO: Implement recursive tree building
     // (See Lab Appendix for logical steps)

@@ -137,9 +137,7 @@ int index_status(const Index *index) {
 extern int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 
 int index_load(Index *index) {
-    // TODO: Implement index loading
-    // (See Lab Appendix for logical steps)
-     index->count = 0;
+index->count = 0;
     FILE *f = fopen(INDEX_FILE, "r");
     if (!f) return 0; // Missing index is not an error
 
@@ -147,16 +145,22 @@ int index_load(Index *index) {
     while (fgets(line, sizeof(line), f) && index->count < MAX_INDEX_ENTRIES) {
         IndexEntry *e = &index->entries[index->count];
         char hex[HASH_HEX_SIZE + 1];
-        if (sscanf(line, "%o %64s %llu %llu %[^\n]", &e->mode, hex, &e->mtime_sec, &e->size, e->path) == 5) {
-            if (hex_to_hash(hex, &e->hash) == 0) index->count++;
+        unsigned long long mtime;
+        unsigned int size;
+        
+        // Use temporary variables of the exact size sscanf expects to prevent memory corruption
+        if (sscanf(line, "%o %64s %llu %u %[^\n]", &e->mode, hex, &mtime, &size, e->path) == 5) {
+            if (hex_to_hash(hex, &e->hash) == 0) {
+                e->mtime_sec = mtime;
+                e->size = size;
+                index->count++;
+            }
         }
     }
     fclose(f);
     return 0;
-
-    (void)index;
-    return -1;
 }
+
 static int compare_index_entries(const void *a, const void *b) {
     return strcmp(((const IndexEntry *)a)->path, ((const IndexEntry *)b)->path);
 }
@@ -175,22 +179,31 @@ static int compare_index_entries(const void *a, const void *b) {
 int index_save(const Index *index) {
     // TODO: Implement atomic index saving
     // (See Lab Appendix for logical steps)
-    Index sorted = *index;
-    qsort(sorted.entries, sorted.count, sizeof(IndexEntry), compare_index_entries);
+     Index *sorted = malloc(sizeof(Index));
+    if (!sorted) return -1;
+    
+    *sorted = *index;
+    qsort(sorted->entries, sorted->count, sizeof(IndexEntry), compare_index_entries);
 
     char tmp_path[512];
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", INDEX_FILE);
     
     FILE *f = fopen(tmp_path, "w");
-    if (!f) return -1;
+    if (!f) { free(sorted); return -1; }
 
-    for (int i = 0; i < sorted.count; i++) {
-        const IndexEntry *e = &sorted.entries[i];
+    for (int i = 0; i < sorted->count; i++) {
+        const IndexEntry *e = &sorted->entries[i];
         char hex[HASH_HEX_SIZE + 1];
         hash_to_hex(&e->hash, hex);
-        fprintf(f, "%06o %s %llu %llu %s\n", e->mode, hex, e->mtime_sec, e->size, e->path);
+        fprintf(f, "%06o %s %llu %u %s\n", 
+                e->mode, hex, (unsigned long long)e->mtime_sec, e->size, e->path);
     }
-    fflush(f); fsync(fileno(f)); fclose(f);
+
+    fflush(f);
+    fsync(fileno(f));
+    fclose(f);
+    free(sorted); // Free heap memory
+
     return rename(tmp_path, INDEX_FILE);
     (void)index;
     return -1;

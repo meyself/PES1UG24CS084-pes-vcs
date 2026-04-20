@@ -150,7 +150,25 @@ static int build_tree(IndexEntry *entries, int count, int depth, ObjectID *id_ou
         if (!local_path) { i++; continue; }
 
         const char *slash = strchr(local_path, '/');
-        
+         if (slash) {
+            // It's a directory (subtree)
+            size_t dir_len = slash - local_path;
+            
+            // Find all files belonging to this subdirectory
+            int sub_count = 0;
+            while (i + sub_count < count) {
+                const char *sub_path = entries[i + sub_count].path;
+                const char *sub_local = sub_path;
+                for (int d = 0; d < depth; d++) {
+                    sub_local = strchr(sub_local, '/');
+                    if (sub_local) sub_local++;
+                }
+                if (sub_local && strncmp(sub_local, local_path, dir_len) == 0 && sub_local[dir_len] == '/') {
+                    sub_count++;
+                } else {
+                    break;
+                }
+            }
 int tree_from_index(ObjectID *id_out) {
     // TODO: Implement recursive tree building
     // (See Lab Appendix for logical steps)

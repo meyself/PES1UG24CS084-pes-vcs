@@ -169,6 +169,16 @@ static int build_tree(IndexEntry *entries, int count, int depth, ObjectID *id_ou
                     break;
                 }
             }
+            ObjectID sub_id;
+            if (build_tree(&entries[i], sub_count, depth + 1, &sub_id) == 0) {
+                TreeEntry *te = &tree.entries[tree.count++];
+                te->mode = 0040000; // MODE_DIR
+                te->hash = sub_id;
+                strncpy(te->name, local_path, dir_len);
+                te->name[dir_len] = '\0';
+            }
+            i += sub_count;
+        }
 int tree_from_index(ObjectID *id_out) {
     // TODO: Implement recursive tree building
     // (See Lab Appendix for logical steps)
